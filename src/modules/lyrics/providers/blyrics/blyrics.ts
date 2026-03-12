@@ -191,9 +191,9 @@ export async function fillTtml(responseString: string, providerParameters: Provi
       if (lyric) {
         lyricIds[meta["@_key"]].push(meta["@_key"] + `_${lyric.length + 1}`);
       } else {
-        lyricIds[meta["@_key"]] = [ meta["@_key"] + "_1" ];
+        lyricIds[meta["@_key"]] = [meta["@_key"] + "_1"];
       }
-      
+
       lyric = lyricIds[meta["@_key"]];
     }
 
@@ -237,11 +237,15 @@ export async function fillTtml(responseString: string, providerParameters: Provi
 
       if (lang && text && line) {
         const lyricLines = lyricIds[line];
-        if (!lyricLines) { return; }
+        if (!lyricLines) {
+          return;
+        }
 
         lyricLines.forEach(id => {
           const lyricLine = lyrics.get(id);
-          if (!lyricLine) { return; }
+          if (!lyricLine) {
+            return;
+          }
 
           lyricLine.translation = { text, lang };
         });
@@ -252,14 +256,20 @@ export async function fillTtml(responseString: string, providerParameters: Provi
   if (transliterationsData && transliterationsData.length > 0) {
     transliterationsData[0].transliteration.forEach((transliteration: TransliterationItem) => {
       const line = transliteration[":@"]["@_for"];
-      if (!line) { return; }
+      if (!line) {
+        return;
+      }
 
       const lyricLines = lyricIds[line];
-      if (!lyricLines) { return; }
+      if (!lyricLines) {
+        return;
+      }
 
       lyricLines.forEach(id => {
         const lyricLine = lyrics.get(id);
-        if (!lyricLine) { return; }
+        if (!lyricLine) {
+          return;
+        }
 
         const beginTime = lyricLine.startTimeMs;
         const parseResult = parseLyricPart(transliteration.text, beginTime, false);
