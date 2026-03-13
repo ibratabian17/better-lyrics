@@ -33,7 +33,7 @@ interface BatchRomanizationResponse {
   detectedLanguage: string;
 }
 
-const LINE_SEPARATOR = "\n\n";
+const BATCH_SEPARATOR = "\n\n;\n\n";
 
 /**
  * Translates a batch of lyric lines in a single request.
@@ -67,8 +67,8 @@ export async function translateBatch(request: BatchRequest): Promise<BatchTransl
   let detectedLanguage = "";
 
   try {
-    // Batch by joining with double newlines
-    const combinedText = toTranslate.map(item => item.text).join(LINE_SEPARATOR);
+    // Batch by joining with double newlines and a separator character
+    const combinedText = toTranslate.map(item => item.text).join(BATCH_SEPARATOR);
     const url = TRANSLATE_LYRICS_URL(targetLanguage, combinedText);
 
     const response = await fetch(url, { cache: "force-cache", signal });
@@ -80,7 +80,25 @@ export async function translateBatch(request: BatchRequest): Promise<BatchTransl
       fullTranslatedText += part[0];
     });
 
-    const translatedLines = fullTranslatedText.split(LINE_SEPARATOR);
+    let translatedLines = fullTranslatedText.split(BATCH_SEPARATOR);
+
+    // Fallback: If Google merged the translations into fewer blocks than expected
+    if (translatedLines.length < toTranslate.length) {
+      // Try splitting by the separator character alone (case where newlines were collapsed)
+      const semicolonSplit = fullTranslatedText.split(";").filter(l => l.trim().length > 0);
+      if (semicolonSplit.length === toTranslate.length) {
+        translatedLines = semicolonSplit;
+      } else {
+        // Try single newline
+        const singleNewlineSplit = fullTranslatedText.split(/\r?\n/).filter(l => l.trim().length > 0);
+        if (singleNewlineSplit.length === toTranslate.length) {
+          translatedLines = singleNewlineSplit;
+        } else if (translatedLines.length === 1 && toTranslate.length > 1) {
+          log(TRANSLATION_ERROR_LOG, `Batch translation failed to split: expected ${toTranslate.length} lines, got 1.`);
+          translatedLines = [];
+        }
+      }
+    }
 
     toTranslate.forEach((item, i) => {
       const translatedText = translatedLines[i]?.trim();
@@ -130,7 +148,7 @@ export async function romanizeBatch(request: BatchRequest): Promise<BatchRomaniz
   let detectedLanguage = sourceLanguage || "auto";
 
   try {
-    const combinedText = toRomanize.map(item => item.text).join(LINE_SEPARATOR);
+    const combinedText = toRomanize.map(item => item.text).join(BATCH_SEPARATOR);
     const lang = sourceLanguage || "auto";
     const url = TRANSLATE_IN_ROMAJI(lang, combinedText);
 
@@ -146,7 +164,25 @@ export async function romanizeBatch(request: BatchRequest): Promise<BatchRomaniz
       }
     }
 
-    const romanizedLines = fullRomanizedText.split(LINE_SEPARATOR);
+    let romanizedLines = fullRomanizedText.split(BATCH_SEPARATOR);
+
+    // Fallback: If Google merged the romanizations into fewer blocks than expected
+    if (romanizedLines.length < toRomanize.length) {
+      // Try splitting by the separator character alone (common in Japanese romanization)
+      const semicolonSplit = fullRomanizedText.split(";").filter(l => l.trim().length > 0);
+      if (semicolonSplit.length === toRomanize.length) {
+        romanizedLines = semicolonSplit;
+      } else {
+        // Try single newline
+        const singleNewlineSplit = fullRomanizedText.split(/\r?\n/).filter(l => l.trim().length > 0);
+        if (singleNewlineSplit.length === toRomanize.length) {
+          romanizedLines = singleNewlineSplit;
+        } else if (romanizedLines.length === 1 && toRomanize.length > 1) {
+          log(TRANSLATION_ERROR_LOG, `Batch romanization failed to split: expected ${toRomanize.length} lines, got 1.`);
+          romanizedLines = [];
+        }
+      }
+    }
 
     toRomanize.forEach((item, i) => {
       const romanizedText = romanizedLines[i]?.trim();
