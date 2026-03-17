@@ -93,9 +93,48 @@ export function resetAnimEngineState(): void {
   animEngineState.doneFirstInstantScroll = false;
   animEngineState.queuedScroll = false;
   cachedDurations.clear();
+  cachedCSSStringValues.clear();
+
+  // Disconnect the ResizeObserver so a new song / lyrics container gets a
+  // fresh observation (element reference may change between songs).
+  _tabRendererObserver?.disconnect();
+  _tabRendererObserver = null;
+  _tabRendererObserved = null;
+  _currentScrollAnimation = null;
 }
 
 export let cachedDurations: Map<string, number> = new Map();
+export let cachedCSSStringValues: Map<string, string> = new Map();
+
+// Cached height updated by ResizeObserver instead of getBoundingClientRect() on every tick
+let _tabRendererObserved: HTMLElement | null = null;
+let _cachedTabRendererHeight = 0;
+let _tabRendererObserver: ResizeObserver | null = null;
+
+function getTabRendererHeight(tabRenderer: HTMLElement): number {
+  if (tabRenderer !== _tabRendererObserved) {
+    _tabRendererObserver?.disconnect();
+    _cachedTabRendererHeight = tabRenderer.getBoundingClientRect().height;
+    _tabRendererObserver = new ResizeObserver(entries => {
+      _cachedTabRendererHeight = entries[0].contentRect.height;
+    });
+    _tabRendererObserver.observe(tabRenderer);
+    _tabRendererObserved = tabRenderer;
+  }
+  return _cachedTabRendererHeight;
+}
+
+// Kept module-level so in-flight scroll animations can be cancelled before starting a new one
+let _currentScrollAnimation: Animation | null = null;
+
+function getCSSStringValue(lyricsElement: HTMLElement, property: string): string {
+  let value = cachedCSSStringValues.get(property);
+  if (value === undefined) {
+    value = window.getComputedStyle(lyricsElement).getPropertyValue(property);
+    cachedCSSStringValues.set(property, value);
+  }
+  return value;
+}
 
 /**
  * Gets and caches a css duration.
@@ -197,7 +236,7 @@ export function animationEngine(currentTime: number, eventCreationTime: number, 
 
     // Read layout values before the loop writes class changes, to avoid forced reflow
     const tabRenderer = document.querySelector(TAB_RENDERER_SELECTOR) as HTMLElement;
-    const tabRendererHeight = tabRenderer.getBoundingClientRect().height;
+    const tabRendererHeight = getTabRendererHeight(tabRenderer);
     let scrollTop = tabRenderer.scrollTop;
 
     let activeElems = [] as LineData[];
@@ -327,8 +366,8 @@ export function animationEngine(currentTime: number, eventCreationTime: number, 
         }
       }
 
-      // Single reflow to flush all pending class/style changes
-      reflow(linesToAnimate[0].lyricElement);
+      // flush all pending class/style change
+      recalcStyles(linesToAnimate[0].lyricElement);
 
       // Activate: add animating class and update state
       for (const lineData of linesToAnimate) {
@@ -501,20 +540,24 @@ export function animationEngine(currentTime: number, eventCreationTime: number, 
           animEngineState.lastScrollDebugContext.activeElms = activeElems;
 
           if (smoothScroll && Math.abs(scrollTop - scrollPos) > 2) {
-            // console.warn("[BLyrics-diag] SCROLL REFLOW", {
-            //   delta: Math.abs(scrollTop - scrollPos).toFixed(0),
-            // });
-            lyricsElement.style.transitionTimingFunction = "";
-            lyricsElement.style.transitionProperty = "";
-            lyricsElement.style.transitionDuration = "";
+            const scrollTime = getCSSDurationInMs(lyricsElement, "transition-duration");
+            const easing = getCSSStringValue(lyricsElement, "transition-timing-function") || "ease";
 
-            let scrollTime = getCSSDurationInMs(lyricsElement, "transition-duration");
-
-            lyricsElement.style.transition = "none";
-            lyricsElement.style.transform = `translate(0px, ${-(scrollTop - scrollPos)}px)`;
-            reflow(lyricsElement);
-            lyricsElement.style.transition = "";
-            lyricsElement.style.transform = "translate(0px, 0px)";
+            // WAAPI avoids the forced reflow the FLIP pattern required to restart the CSS transition
+            const delta = -(scrollTop - scrollPos);
+            _currentScrollAnimation?.cancel();
+            _currentScrollAnimation = lyricsElement.animate(
+              [
+                { transform: `translate(0px, ${delta}px)`, composite: "replace" },
+                { transform: "translate(0px, 0px)",        composite: "replace" },
+              ],
+              {
+                duration: scrollTime,
+                easing,
+                fill: "none",
+              }
+            );
+            lyricsElement.style.transform = "";
 
             animEngineState.nextScrollAllowedTime = scrollTime + Date.now() + 20;
           }
@@ -639,3 +682,13 @@ export function toMs(cssDuration: string): number {
 export function reflow(elt: HTMLElement): void {
   void elt.offsetHeight;
 }
+
+/**
+ * Forces the browser to recalculate styles for the element to reset animations.
+ *
+ * @param elt - Element to recalculate styles for
+ */
+export function recalcStyles(elt: HTMLElement): void {
+  void window.getComputedStyle(elt).animationName;
+}
+
