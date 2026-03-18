@@ -128,7 +128,7 @@ function setupTabRendererObserver(element: HTMLElement) {
   if (tabRendererResizeObserver) {
     tabRendererResizeObserver.disconnect();
   }
-  
+
   tabRendererResizeObserver = new ResizeObserver(() => {
     if (element && element.isConnected) {
       cachedTabRendererHeight = element.getBoundingClientRect().height;
@@ -220,7 +220,8 @@ export function animationEngine(currentTime: number, eventCreationTime: number, 
     const lyricScrollTime = currentTime + getCSSDurationInMs(lyricsElement, "--blyrics-scroll-timing-offset") / 1000;
 
     // Read layout values before the loop writes class changes, to avoid forced reflow
-    const tabRenderer = document.querySelector(TAB_RENDERER_SELECTOR) as HTMLElement;
+    const tabRenderer = document.querySelector(TAB_RENDERER_SELECTOR) as HTMLElement | null;
+    if (!tabRenderer) return;
     if (tabRenderer !== observedTabRenderer) {
       setupTabRendererObserver(tabRenderer);
     }

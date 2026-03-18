@@ -31,15 +31,15 @@ let lastVideoId = null;
 /**
  * Sets up a ResizeObserver on the player element to cache the content rect.
  * This avoids querying the DOM layout every 20ms which causes performance drops.
- * @param {HTMLElement} player 
+ * @param {HTMLElement} player
  */
-const setupResizeObserver = (player) => {
+const setupResizeObserver = player => {
   if (playerResizeObserver) {
     playerResizeObserver.disconnect();
   }
 
   playerResizeObserver = new ResizeObserver(() => {
-    if (player && typeof player.getVideoContentRect === 'function') {
+    if (player && typeof player.getVideoContentRect === "function") {
       cachedContentRect = player.getVideoContentRect();
     }
   });
@@ -76,7 +76,7 @@ const startLyricsTick = () => {
         // Update the cached rect when the video changes, as aspect ratios might shift
         if (video_id !== lastVideoId) {
           lastVideoId = video_id;
-          if (typeof player.getVideoContentRect === 'function') {
+          if (typeof player.getVideoContentRect === "function") {
             cachedContentRect = player.getVideoContentRect();
           }
         }
@@ -87,7 +87,7 @@ const startLyricsTick = () => {
 
         // Use the cached contentRect. Fallback if it hasn't been cached yet.
         let contentRect = cachedContentRect;
-        if (!contentRect && typeof player.getVideoContentRect === 'function') {
+        if (!contentRect && typeof player.getVideoContentRect === "function") {
           contentRect = player.getVideoContentRect();
           cachedContentRect = contentRect;
         }
