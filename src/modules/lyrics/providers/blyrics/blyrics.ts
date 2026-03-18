@@ -233,7 +233,7 @@ export async function fillTtml(responseString: string, providerParameters: Provi
   if (translationsData && translationsData.length > 0) {
     translationsData.forEach(translateContainer => {
       translateContainer.translation.forEach(translation => {
-        const lang = translateContainer[":@"]["@_lang"]
+        const lang = translateContainer[":@"]["@_lang"];
         const text = translation.text[0]["#text"];
         const line = translation[":@"]["@_for"];
 
@@ -253,7 +253,7 @@ export async function fillTtml(responseString: string, providerParameters: Provi
             lyricLine.translations[lang] = text;
           });
         }
-      })
+      });
     });
   }
 
