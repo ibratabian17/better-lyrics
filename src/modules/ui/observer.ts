@@ -15,7 +15,12 @@ import {
 } from "@constants";
 import { AppState, handleModifications, reloadLyrics, type PlayerDetails } from "@core/appState";
 import { onAutoSwitchEnabled, onFullScreenDisabled } from "@modules/settings/settings";
-import { animationEngine, animEngineState, getResumeScrollElement } from "@modules/ui/animationEngine";
+import {
+  animationEngine,
+  animEngineState,
+  getResumeScrollElement,
+  resetActiveAnimations,
+} from "@modules/ui/animationEngine";
 import {
   closePlayerPageIfOpenedForFullscreen,
   isNavigating,
@@ -30,6 +35,7 @@ import {
   cleanup,
   injectSongAttributes,
   isLoaderActive,
+  preloadHighResThumbnail,
   renderLoader,
   resetThumbnailState,
   showYtThumbnail,
@@ -262,6 +268,12 @@ export function initializeLyrics(): void {
   }
   hasInitializedLyrics = true;
 
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      resetActiveAnimations();
+    }
+  });
+
   // @ts-ignore
   document.addEventListener("blyrics-send-player-time", (event: CustomEvent<PlayerDetails>) => {
     const detail = event.detail;
@@ -274,7 +286,6 @@ export function initializeLyrics(): void {
       AppState.lastVideoId = currentVideoId;
       AppState.lastVideoDetails = currentVideoDetails;
       resetThumbnailState();
-      showYtThumbnail();
       if (!detail.song || !detail.artist) {
         log("Lyrics switched: Still waiting for metadata ", detail.videoId);
         return;
@@ -294,12 +305,14 @@ export function initializeLyrics(): void {
         if (AppState.lastVideoId !== videoIdAtStart) return;
 
         if (songMetadata?.isVideo && songMetadata.counterpartVideoId) {
-          songMetadata = await getSongMetadata(songMetadata.counterpartVideoId, 250, abortController.signal);
+          songMetadata = await getSongMetadata(songMetadata.counterpartVideoId, 10, abortController.signal);
           if (AppState.lastVideoId !== videoIdAtStart) return;
         }
 
         if (songMetadata) {
           addThumbnail(songMetadata.smallThumbnail);
+        } else {
+          showYtThumbnail();
         }
       });
     }
@@ -318,6 +331,7 @@ export function initializeLyrics(): void {
           }
 
           if (next) {
+            preloadHighResThumbnail(next.smallThumbnail);
             await preFetchLyrics(
               {
                 song: next.title,

@@ -1,6 +1,6 @@
 import { openSearchPanel } from "@codemirror/search";
 import { LOG_PREFIX_EDITOR } from "@constants";
-import { initI18n } from "@core/i18n";
+import { initI18n, loadLocaleOverride } from "@core/i18n";
 import { createEditorState, createEditorView } from "./core/editor";
 import { editorStateManager } from "./core/state";
 import { generateDefaultFilename, importManager, saveCSSToFile } from "./features/import";
@@ -12,6 +12,7 @@ import {
   handleSaveTheme,
   initStoreThemeListener,
   openThemeModal,
+  preloadInstalledThemeImages,
   saveToStorage,
   setThemeName,
 } from "./features/themes";
@@ -183,11 +184,14 @@ async function initializeEditor() {
 
   await Promise.allSettled([setSelectedThemePromise, loadCustomCssPromise]);
 
+  preloadInstalledThemeImages();
+
   console.log(LOG_PREFIX_EDITOR, "Editor initialization complete");
 }
 
 export function initialize() {
   document.addEventListener("DOMContentLoaded", async () => {
+    await loadLocaleOverride();
     initI18n();
     await initializeEditor();
     initializeNavigation();

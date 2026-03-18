@@ -23,7 +23,6 @@ import {
   TRANSLATED_LYRICS_CLASS,
   type SyncType,
   HIDDEN_CLASS,
-  LYRICS_SPACING_ELEMENT_ID,
 } from "@constants";
 import { t } from "@core/i18n";
 import { AppState } from "@core/appState";
@@ -538,6 +537,17 @@ function getContainerSize(): number {
   return Math.round(Math.max(document.getElementById("thumbnail")?.getBoundingClientRect().width || 0, 544));
 }
 
+function getHighResImageUrl(smallThumbnail: ThumbnailElement) {
+  const containerSize = getContainerSize();
+  let url = smallThumbnail.url;
+  if (url && /w\d+-h\d+/.test(url)) {
+    url = url.replace(/w\d+-h\d+/, `w${containerSize}-h${containerSize}`);
+  } else {
+    url = url.replace(/\/(sd|hq|mq)?default\.jpg/, "/maxresdefault.jpg");
+  }
+  return url;
+}
+
 export function addThumbnail(smallThumbnail: ThumbnailElement): void {
   thumbnailResizeObserver?.disconnect();
 
@@ -552,30 +562,17 @@ export function addThumbnail(smallThumbnail: ThumbnailElement): void {
     document.getElementById("thumbnail")?.appendChild(imgElm);
   }
 
-  if (lastLoadedThumbnail !== smallThumbnail) {
-    imgElm.src = smallThumbnail.url;
-    imgElm.classList.remove(HIDDEN_CLASS);
-    setBackgroundImage(smallThumbnail.url);
-  }
-  lastLoadedThumbnail = smallThumbnail;
-
   const containerSize = getContainerSize();
-
-  let url = smallThumbnail.url;
-  if (url && /w\d+-h\d+/.test(url)) {
-    url = url.replace(/w\d+-h\d+/, `w${containerSize}-h${containerSize}`);
-  } else {
-    url = url.replace(/\/(sd|hq|mq)?default\.jpg/, "/maxresdefault.jpg");
-  }
-
-  const proxy = new Image();
-  proxy.src = url;
+  const url = getHighResImageUrl(smallThumbnail);
 
   albumArtLoadController?.abort();
   const loadController = new AbortController();
   albumArtLoadController = loadController;
 
-  proxy.onload = () => {
+  const proxy = new Image();
+  proxy.src = url;
+
+  const setHighResImage = () => {
     if (loadController.signal.aborted) return;
 
     imgElm.src = proxy.src;
@@ -595,6 +592,26 @@ export function addThumbnail(smallThumbnail: ThumbnailElement): void {
     });
     thumbnailResizeObserver.observe(thumbnailElm);
   };
+
+  if (proxy.complete) {
+    lastLoadedThumbnail = smallThumbnail;
+    setHighResImage();
+  } else {
+    if (lastLoadedThumbnail !== smallThumbnail) {
+      imgElm.src = smallThumbnail.url;
+      imgElm.classList.remove(HIDDEN_CLASS);
+      setBackgroundImage(smallThumbnail.url);
+    }
+
+    lastLoadedThumbnail = smallThumbnail;
+
+    proxy.onload = setHighResImage;
+  }
+}
+
+export function preloadHighResThumbnail(smallThumbnail: ThumbnailElement) {
+  const proxy = new Image();
+  proxy.src = getHighResImageUrl(smallThumbnail);
 }
 
 export function showYtThumbnail(): void {
@@ -769,11 +786,26 @@ export function setExtraHeight() {
   const lyricsHeight = lyricsElement.getBoundingClientRect().height;
   const tabRenderer = document.querySelector(TAB_RENDERER_SELECTOR) as HTMLElement;
   const tabRendererHeight = tabRenderer.getBoundingClientRect().height;
+  const scrollPosOffsetRatio = SCROLL_POS_OFFSET_RATIO.getNumberValue();
+
+  const firstLyric = document.querySelector("#blyrics-wrapper > div > div:nth-child(1)");
+
+  const paddingTop = Math.max(
+    0,
+    tabRendererHeight * scrollPosOffsetRatio - (firstLyric?.getBoundingClientRect().height || 0) / 2
+  );
+
+  document.documentElement.style.setProperty("--blyrics-padding-top", paddingTop + "px");
+
+  const footer = document.querySelector("#blyrics-wrapper > div > div.blyrics-footer");
+  const lastLyric = document.querySelector(".blyrics--line:not(:has(~ .blyrics--line))");
 
   let extraHeight = Math.max(
-    tabRendererHeight * (1 - SCROLL_POS_OFFSET_RATIO.getNumberValue()),
+    tabRendererHeight * (1 - scrollPosOffsetRatio) -
+      (footer?.getBoundingClientRect().height || 0) -
+      (lastLyric?.getBoundingClientRect().height || 0) / 2,
     tabRendererHeight - lyricsHeight
   );
 
-  (document.getElementById(LYRICS_SPACING_ELEMENT_ID) as HTMLElement).style.height = `${extraHeight.toFixed(0)}px`;
+  document.documentElement.style.setProperty("--blyrics-padding-bottom", extraHeight + "px");
 }
