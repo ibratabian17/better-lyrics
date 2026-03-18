@@ -44,7 +44,8 @@ ytmusic-player[is-mweb-player-page-modernization-enabled]:not([video-mode]) {
 .blyrics-container {
   overflow-y: auto;
   scroll-behavior: smooth;
-  padding: 10px;
+  padding-top: 10px;
+  padding-inline: 10px;
 }
 
 .blyrics-container:has(.blyrics--active):not(.blyrics-user-scrolling) > div:not(.blyrics--active):not(.blyrics--active ~ div) {
